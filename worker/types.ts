@@ -17,10 +17,24 @@ export interface Env {
   CORS_ORIGIN: string;
 }
 
+// The CV file bytes (cv_file_data) are NOT part of this type — getProfile()
+// deliberately excludes that column so routine profile fetches stay small;
+// see lib/db.ts's getCvFile() for the one query that reads it. cv_file_name
+// non-null is the "a CV exists" signal used everywhere else (e.g.
+// routes/draft.ts's hasCvFile).
 export interface ResumeProfile {
   id: 1;
   content_text: string;
+  portfolio_link: string | null;
+  cv_file_name: string | null;
+  cv_file_uploaded_at: string | null;
   updated_at: string;
+}
+
+export interface CvFile {
+  data: ArrayBuffer;
+  fileName: string;
+  contentType: string;
 }
 
 export type LeadStatus = 'new' | 'drafted' | 'sent' | 'replied';

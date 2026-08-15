@@ -44,6 +44,7 @@ export function App() {
 
   const selectedLead = leads.find((l) => l.id === selectedLeadId) ?? null;
   const hasProfile = Boolean(profile?.content_text?.trim());
+  const hasCvFile = Boolean(profile?.cv_file_name);
 
   return (
     <div className="app">
@@ -70,6 +71,7 @@ export function App() {
           <DraftPanel
             lead={selectedLead}
             hasProfile={hasProfile}
+            hasCvFile={hasCvFile}
             onLeadChanged={handleLeadChanged}
             onDraftGenerated={refreshUsage}
           />

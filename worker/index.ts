@@ -4,6 +4,9 @@
 //
 // Routes (all under /api/v1/, response envelope documented in lib/http.ts):
 //   GET/PUT  /api/v1/profile              resume profile (single row)
+//   POST     /api/v1/profile/cv           upload/replace the CV file (multipart)
+//   GET      /api/v1/profile/cv           download the CV file
+//   DELETE   /api/v1/profile/cv           remove the CV file
 //   GET/POST /api/v1/leads                list / create leads
 //   PATCH    /api/v1/leads/:id            update status or replied flag
 //   DELETE   /api/v1/leads/:id            remove a lead
@@ -14,7 +17,7 @@
 // Bindings: DB (D1), AI (Workers AI), AI_MODEL / CORS_ORIGIN (vars) — see types.ts.
 import type { Env } from './types';
 import { AppError, jsonError, corsHeaders, withCors } from './lib/http';
-import { handleGetProfile, handlePutProfile } from './routes/profile';
+import { handleGetProfile, handlePutProfile, handleUploadCv, handleDownloadCv, handleDeleteCv } from './routes/profile';
 import { handleListLeads, handleCreateLead, handleUpdateLead, handleDeleteLead } from './routes/leads';
 import { handleGenerateDraft, handleMarkSent, handleUsage } from './routes/draft';
 
@@ -30,6 +33,12 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (pathname === '/api/v1/profile') {
     if (method === 'GET') return await handleGetProfile(env);
     if (method === 'PUT') return await handlePutProfile(request, env);
+  }
+
+  if (pathname === '/api/v1/profile/cv') {
+    if (method === 'POST') return await handleUploadCv(request, env);
+    if (method === 'GET') return await handleDownloadCv(env);
+    if (method === 'DELETE') return await handleDeleteCv(env);
   }
 
   if (pathname === '/api/v1/leads') {

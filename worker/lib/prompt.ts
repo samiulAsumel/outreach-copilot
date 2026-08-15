@@ -32,10 +32,33 @@ function toneInstruction(tone: Tone): string {
     : 'Tone: casual and direct, like a note to a peer. Contractions are fine. Still respectful, not flippant.';
 }
 
+// The honesty guard extends to these too: a generic "attach your CV" instinct
+// would have the model claim an attachment that may not exist. hasCvFile is
+// the one fact this function trusts without re-deriving it (it's a plain
+// boolean the caller already knows from resume_profile.cv_file_name), but the
+// *wording* still has to forbid the false case explicitly, the same way
+// FORBIDDEN_CLAIMS does for skills — an implicit "just don't mention it if
+// there's nothing to mention" is exactly the kind of instruction models drift
+// on.
+function closingInstruction(portfolioLink: string | null, hasCvFile: boolean): string {
+  const lines: string[] = [];
+  if (portfolioLink) {
+    lines.push(`Close with a sign-off that includes this exact portfolio link: ${portfolioLink}. Do not alter it or invent a different one.`);
+  }
+  lines.push(
+    hasCvFile
+      ? 'A CV is attached separately (not by you — the sender attaches it manually before sending). You may include one short line noting that a CV is attached.'
+      : 'No CV is attached. Do not mention an attached CV, resume attachment, or "please find attached" anywhere in the email.'
+  );
+  return lines.join('\n');
+}
+
 export interface DraftPromptInput {
   resumeText: string;
   lead: Pick<Lead, 'company_name' | 'url' | 'contact_name' | 'fetched_context'>;
   tone: Tone;
+  portfolioLink: string | null;
+  hasCvFile: boolean;
 }
 
 export interface ChatMessage {
@@ -47,7 +70,7 @@ export interface ChatMessage {
 // that touches the network, so this function can be unit tested (see
 // tests/prompt.test.ts) without a Workers AI binding or any mocking.
 export function buildDraftPrompt(input: DraftPromptInput): ChatMessage[] {
-  const { resumeText, lead, tone } = input;
+  const { resumeText, lead, tone, portfolioLink, hasCvFile } = input;
   const greeting = lead.contact_name ? `addressed to ${lead.contact_name}` : 'with a generic greeting (no contact name is known)';
   const companyContext = lead.fetched_context
     ? `Additional context fetched from the company's website:\n${lead.fetched_context}`
@@ -58,6 +81,8 @@ export function buildDraftPrompt(input: DraftPromptInput): ChatMessage[] {
 ${HONESTY_RULES}
 
 ${toneInstruction(tone)}
+
+${closingInstruction(portfolioLink, hasCvFile)}
 
 Output only the email body (including a subject line as the first line, prefixed "Subject: "). No preamble, no explanation, no markdown formatting.`;
 

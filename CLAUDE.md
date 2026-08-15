@@ -43,6 +43,16 @@ worker/         API Worker — the only thing that touches D1 or Workers AI, dep
 migrations/     D1 schema, applied with `wrangler d1 migrations apply`
 ```
 
+The CV file is stored directly in D1 (`resume_profile.cv_file_data`, a BLOB) rather
+than in a separate object store — it's small (capped at 1.5 MB, well under D1's 2 MB
+max row/BLOB size) and this is a single-user tool, so R2 wasn't worth the extra
+moving part (and its one-time dashboard activation step). `getProfile()` deliberately
+excludes `cv_file_data` from its SELECT so routine profile fetches stay small; only
+`lib/db.ts`'s `getCvFile()` reads it. **Non-obvious gotcha**: the deployed D1 binding
+returns BLOB columns as a plain `number[]`, not a real `ArrayBuffer` — confirmed by
+direct inspection against the live API, not documented anywhere — so `getCvFile()`
+normalizes with `Array.isArray()` before handing the bytes to the download route.
+
 **Frontend (Cloudflare Pages, `outreach-copilot.pages.dev`) and API (Cloudflare
 Worker, `outreach-copilot-api.sasas.workers.dev`) are two separate deployments on
 two different origins in production.** They talk over CORS: `worker/lib/http.ts`'s
@@ -84,6 +94,11 @@ of relying on that auto-build.
   (including thrown errors) with `withCors()` and answers `OPTIONS` before routing.
   Don't add CORS headers inside individual route handlers — it belongs at that one
   seam so `CORS_ORIGIN` only ever needs to be right in one place.
+- **The honesty guard covers the CV/portfolio-link claims too, not just skills.**
+  `worker/lib/prompt.ts`'s `closingInstruction()` explicitly forbids mentioning an
+  attachment when `hasCvFile` is false — an implicit "just don't mention it" is
+  exactly the kind of instruction models drift on, so it has to be spelled out the
+  same way `FORBIDDEN_CLAIMS` is. If you touch this function, re-run `npm test`.
 
 ## Out of scope (don't add unless asked)
 

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api/client';
+import { api, cvDownloadUrl } from '../api/client';
 import type { Lead, Tone } from '../types';
 
 interface DraftPanelProps {
   lead: Lead | null;
   hasProfile: boolean;
+  hasCvFile: boolean;
   onLeadChanged: (lead: Lead) => void;
   onDraftGenerated: () => void;
 }
@@ -20,7 +21,7 @@ function splitSubject(draftText: string): { subject: string; body: string } {
   return { subject: '', body: draftText };
 }
 
-export function DraftPanel({ lead, hasProfile, onLeadChanged, onDraftGenerated }: DraftPanelProps) {
+export function DraftPanel({ lead, hasProfile, hasCvFile, onLeadChanged, onDraftGenerated }: DraftPanelProps) {
   const [tone, setTone] = useState<Tone>('formal');
   const [draftText, setDraftText] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -127,6 +128,15 @@ export function DraftPanel({ lead, hasProfile, onLeadChanged, onDraftGenerated }
             <button type="button" onClick={copyToClipboard}>
               {copied ? 'Copied!' : 'Copy'}
             </button>
+            {hasCvFile && (
+              // mailto: links cannot carry attachments (a hard limitation of
+              // the URI scheme, not something worth working around) — this
+              // is the reminder to grab the file and attach it by hand
+              // before actually sending.
+              <a className="button-like" href={cvDownloadUrl}>
+                Download CV
+              </a>
+            )}
             <a className="button-like" href={mailto}>
               Open in email client
             </a>

@@ -23,7 +23,13 @@ export async function handleGenerateDraft(request: Request, env: Env, leadId: nu
     );
   }
 
-  const messages = buildDraftPrompt({ resumeText: profile.content_text, lead, tone });
+  const messages = buildDraftPrompt({
+    resumeText: profile.content_text,
+    lead,
+    tone,
+    portfolioLink: profile.portfolio_link,
+    hasCvFile: Boolean(profile.cv_file_name),
+  });
   const draftText = await generateDraft(env, messages);
 
   const logEntry = await db.insertDraft(env, leadId, tone, draftText);

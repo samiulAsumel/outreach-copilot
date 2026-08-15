@@ -29,7 +29,10 @@ facts, and gets out of the way — you still edit and send every email by hand.
   in `wrangler.jsonc`.
 - **D1** for `resume_profile` / `leads` / `email_log` — five million free row-reads
   and 100k free row-writes a day is far more than a single-user tool with a few
-  hundred leads will ever hit.
+  hundred leads will ever hit. The CV file lives here too, as a BLOB column
+  (`resume_profile.cv_file_data`, capped at 1.5 MB) — no separate object store (R2)
+  needed for one small file on a single-user tool, and no extra Cloudflare service
+  to activate.
 - **Workers AI** (`@cf/zai-org/glm-4.7-flash` by default) for draft generation —
   10,000 free neurons/day, no card required. The model is a `wrangler.jsonc` `vars`
   entry, not hardcoded, so swapping models is a config edit.
@@ -80,7 +83,11 @@ separate API and would otherwise serve unbuilt source files).
 ## Data model
 
 ```
-resume_profile (id=1, content_text, updated_at)      — one row, your resume text
+resume_profile (id=1, content_text, portfolio_link,   — one row, your resume text +
+                cv_file_name, cv_file_type,              sign-off link + CV file
+                cv_file_data, cv_file_uploaded_at,        (cv_file_data: BLOB, capped
+                updated_at)                                at 1.5 MB, excluded from
+                                                            normal profile reads)
 leads          (id, company_name, url, contact_name,
                 contact_email, fetched_context,        — fetched_context: Phase 3, null for now
                 status, created_at)                    — status: new | drafted | sent | replied
@@ -96,7 +103,10 @@ All under `/api/v1/`. Success: `{success: true, data, message}`. Error:
 
 | Method | Route | |
 |---|---|---|
-| GET / PUT | `/api/v1/profile` | read / replace the resume |
+| GET / PUT | `/api/v1/profile` | read / replace the resume text + portfolio link |
+| POST | `/api/v1/profile/cv` | upload/replace the CV file (`multipart/form-data`, field `file`; PDF/.doc/.docx, 5 MB max) |
+| GET | `/api/v1/profile/cv` | download the CV file |
+| DELETE | `/api/v1/profile/cv` | remove the CV file |
 | GET / POST | `/api/v1/leads` | list / create |
 | PATCH / DELETE | `/api/v1/leads/:id` | update status or replied flag / remove |
 | POST | `/api/v1/leads/:id/draft` | generate a draft (body: `{tone: "formal"\|"casual"}`), logs it |
@@ -109,15 +119,19 @@ The system prompt (`worker/lib/prompt.ts`) is built from the same hard content r
 already enforced in the CV repo (`00.Resume/samiulAsumel.cv/CLAUDE.md`): every claim
 traceable to the resume text actually saved, RHCSA/RHCE described only as
 self-directed practice in progress, no fabricated certifications, port operations
-stays the primary professional identity. `tests/prompt.test.ts` asserts these
-survive any future edit to the prompt template.
+stays the primary professional identity. The same bar applies to the newer claims:
+the model may only say "CV attached" when a CV file actually exists
+(`resume_profile.cv_file_name` is set), and the portfolio link, when included, must
+be the exact URL saved — never altered or invented. `tests/prompt.test.ts` asserts
+all of this survives any future edit to the prompt template.
 
 ## Known limitations (Phase 0)
 
 - **No auth. The live site is public with no login — this is a real, current gap,
   not a someday-risk.** Anyone with the URL can read/write the resume and lead
-  data, and trigger AI draft generation (spending real Workers AI quota). Password
-  auth is Phase 1 and should happen before this is used for anything sensitive.
+  data, trigger AI draft generation (spending real Workers AI quota), and
+  upload/replace/download/delete the CV file. Password auth is Phase 1 and should
+  happen before this is used for anything sensitive.
 - **No company URL fetch yet.** `leads.url` is stored but not fetched;
   `fetched_context` is always `null` until Phase 3 — drafts today work from the
   resume and company name alone.

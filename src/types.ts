@@ -8,6 +8,9 @@ export type Tone = 'formal' | 'casual';
 export interface ResumeProfile {
   id: 1;
   content_text: string;
+  portfolio_link: string | null;
+  cv_file_name: string | null;
+  cv_file_uploaded_at: string | null;
   updated_at: string | null;
 }
 
