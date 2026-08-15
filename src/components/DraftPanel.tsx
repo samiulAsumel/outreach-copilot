@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { CHANNEL_LABEL } from '../lib/channels';
+import { leadDisplayName } from '../lib/leadDisplay';
 import type { Lead, Tone, Channel } from '../types';
 
 interface DraftPanelProps {
@@ -124,7 +125,7 @@ export function DraftPanel({ lead, hasProfile, hasCvFile, onLeadChanged, onDraft
 
   return (
     <section className="panel">
-      <h2>Draft for {lead.company_name}</h2>
+      <h2>Draft for {leadDisplayName(lead)}</h2>
 
       {!hasProfile && <p className="error-text">Save a resume profile before generating drafts.</p>}
 

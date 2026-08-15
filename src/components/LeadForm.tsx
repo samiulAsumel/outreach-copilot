@@ -53,19 +53,22 @@ export function LeadForm({ onCreated }: LeadFormProps) {
   return (
     <section className="panel">
       <h2>Add a lead</h2>
+      <p className="panel__hint">
+        A lead can be a company, a person, or both — provide at least a company name, a
+        contact name, or a LinkedIn profile URL.
+      </p>
       <form onSubmit={handleSubmit} className="lead-form">
         <label>
-          Company name
-          <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} required />
+          Company name (optional)
+          <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
         </label>
         <label>
-          Company URL
+          Company URL (optional)
           <input
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://company.example.com"
-            required
           />
         </label>
         <label>

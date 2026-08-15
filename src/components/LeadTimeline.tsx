@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { CHANNEL_LABEL } from '../lib/channels';
+import { leadDisplayName } from '../lib/leadDisplay';
 import type { Lead, OutreachLogEntry } from '../types';
 
 interface LeadTimelineProps {
@@ -60,7 +61,7 @@ export function LeadTimeline({ lead, refreshKey }: LeadTimelineProps) {
 
   return (
     <section className="panel">
-      <h2>Outreach history for {lead.company_name}</h2>
+      <h2>Outreach history for {leadDisplayName(lead)}</h2>
       {error && <p className="error-text">{error}</p>}
       {history.length === 0 ? (
         <p className="panel__hint">Nothing drafted for this lead yet.</p>

@@ -15,7 +15,7 @@ export async function handleCreateLead(request: Request, env: Env): Promise<Resp
     throw badRequest('Request body must be JSON');
   }
 
-  const companyName = typeof body.company_name === 'string' ? body.company_name.trim() : '';
+  const companyName = typeof body.company_name === 'string' && body.company_name.trim() ? body.company_name.trim() : null;
   const rawUrl = typeof body.url === 'string' ? body.url.trim() : '';
   const contactName = typeof body.contact_name === 'string' && body.contact_name.trim() ? body.contact_name.trim() : null;
   const contactEmail = typeof body.contact_email === 'string' && body.contact_email.trim() ? body.contact_email.trim() : null;
@@ -23,17 +23,21 @@ export async function handleCreateLead(request: Request, env: Env): Promise<Resp
   const whatsappNumber = typeof body.whatsapp_number === 'string' && body.whatsapp_number.trim() ? body.whatsapp_number.trim() : null;
 
   const details: string[] = [];
-  if (!companyName || companyName.length > 200) {
-    details.push('company_name is required (max 200 chars)');
+  if (companyName && companyName.length > 200) {
+    details.push('company_name must be 200 characters or fewer');
   }
+  // url is optional now (a person-only lead has no company site to store),
+  // but if one is given it still has to actually be a URL.
   let parsedUrl: URL | null = null;
-  try {
-    parsedUrl = new URL(rawUrl);
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-      details.push('url must be http(s)');
+  if (rawUrl) {
+    try {
+      parsedUrl = new URL(rawUrl);
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        details.push('url must be http(s)');
+      }
+    } catch {
+      details.push('url must be a valid absolute URL, e.g. https://example.com');
     }
-  } catch {
-    details.push('url must be a valid absolute URL, e.g. https://example.com');
   }
   if (contactEmail && !EMAIL_RE.test(contactEmail)) {
     details.push('contact_email is not a valid email address');
@@ -45,13 +49,19 @@ export async function handleCreateLead(request: Request, env: Env): Promise<Resp
       details.push('linkedin_url must be a valid absolute URL');
     }
   }
+  // A lead has to be identifiable as *something* — a company, a named
+  // contact, or a LinkedIn profile — but not necessarily all three now
+  // that a lead can be just a person with no company attached.
+  if (!companyName && !contactName && !linkedinUrl) {
+    details.push('Provide at least a company name, a contact name, or a LinkedIn profile URL');
+  }
   if (details.length > 0) {
     throw badRequest('Invalid lead data', details);
   }
 
   const lead = await db.createLead(env, {
     companyName,
-    url: parsedUrl!.toString(),
+    url: parsedUrl ? parsedUrl.toString() : null,
     contactName,
     contactEmail,
     linkedinUrl,

@@ -98,8 +98,8 @@ export async function getLead(env: Env, id: number): Promise<Lead | null> {
 }
 
 export interface NewLead {
-  companyName: string;
-  url: string;
+  companyName: string | null;
+  url: string | null;
   contactName: string | null;
   contactEmail: string | null;
   linkedinUrl: string | null;

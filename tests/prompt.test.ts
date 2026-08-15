@@ -7,8 +7,8 @@ import { buildDraftPrompt, CHANNEL_SPECS, FORBIDDEN_CLAIMS, type DraftPromptInpu
 import type { Channel } from '../worker/types.ts';
 
 const baseLead = {
-  company_name: 'Acme Logistics',
-  url: 'https://acme.example.com',
+  company_name: 'Acme Logistics' as string | null,
+  url: 'https://acme.example.com' as string | null,
   contact_name: null as string | null,
   fetched_context: null as string | null,
 };
@@ -125,6 +125,35 @@ test('only email asks for a subject line', () => {
 test('LinkedIn connection notes carry the 300-character platform limit', () => {
   const [, user] = buildDraftPrompt({ ...base, resumeText: 'x', channel: 'linkedin_connection' });
   assert.match(user.content, /300 character/);
+});
+
+test('a person-only lead (no company) is not told to invent one', () => {
+  const [, user] = buildDraftPrompt({
+    ...base,
+    resumeText: 'x',
+    lead: { ...baseLead, company_name: null, url: null, contact_name: 'Jane Doe' },
+  });
+  assert.doesNotMatch(user.content, /Target company:/);
+  assert.match(user.content, /no specific company or job opening attached/);
+  assert.match(user.content, /Do not invent one/);
+  assert.match(user.content, /addressed to Jane Doe/);
+});
+
+test('a person-only lead still carries the full honesty guard', () => {
+  const [system] = buildDraftPrompt({
+    ...base,
+    resumeText: 'x',
+    lead: { ...baseLead, company_name: null, url: null },
+  });
+  for (const claim of FORBIDDEN_CLAIMS) {
+    assert.ok(system.content.includes(claim), `person-only lead must still forbid "${claim}"`);
+  }
+});
+
+test('a company lead still gets the company-need framing (person-only branch does not leak into it)', () => {
+  const [, user] = buildDraftPrompt({ ...base, resumeText: 'x' });
+  assert.match(user.content, /Target company: Acme Logistics/);
+  assert.match(user.content, /what this company likely needs/);
 });
 
 test('channels without an attachment concept forbid mentioning one even when a CV file exists', () => {

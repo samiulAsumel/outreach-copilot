@@ -1,4 +1,5 @@
 import { api } from '../api/client';
+import { leadDisplayName } from '../lib/leadDisplay';
 import type { Lead } from '../types';
 
 interface LeadListProps {
@@ -53,7 +54,7 @@ export function LeadList({ leads, selectedLeadId, onSelect, onChanged, onDeleted
         {leads.map((lead) => (
           <li key={lead.id} className={lead.id === selectedLeadId ? 'lead-list__item lead-list__item--active' : 'lead-list__item'}>
             <button type="button" className="lead-list__main" onClick={() => onSelect(lead.id)}>
-              <span className="lead-list__company">{lead.company_name}</span>
+              <span className="lead-list__company">{leadDisplayName(lead)}</span>
               <span className={`lead-list__status lead-list__status--${lead.status}`}>{STATUS_LABEL[lead.status]}</span>
             </button>
             <div className="lead-list__actions">
@@ -70,7 +71,7 @@ export function LeadList({ leads, selectedLeadId, onSelect, onChanged, onDeleted
               <button type="button" className="btn btn--ghost" onClick={() => toggleClosed(lead)}>
                 {lead.status === 'closed' ? 'Reopen' : 'Close'}
               </button>
-              <button type="button" className="btn btn--danger" onClick={() => remove(lead)} aria-label={`Delete ${lead.company_name}`}>
+              <button type="button" className="btn btn--danger" onClick={() => remove(lead)} aria-label={`Delete ${leadDisplayName(lead)}`}>
                 Delete
               </button>
             </div>

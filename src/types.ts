@@ -21,8 +21,10 @@ export interface ResumeProfile {
 
 export interface Lead {
   id: number;
-  company_name: string;
-  url: string;
+  // Both nullable — a lead can be just a person (e.g. a LinkedIn contact
+  // with no specific company attached).
+  company_name: string | null;
+  url: string | null;
   contact_name: string | null;
   contact_email: string | null;
   linkedin_url: string | null;

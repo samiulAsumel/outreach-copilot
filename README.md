@@ -108,10 +108,13 @@ resume_profile (id=1, content_text, portfolio_link,   — one row, your resume t
                 cv_file_data, cv_file_uploaded_at,        (cv_file_data: BLOB, capped
                 updated_at)                                at 1.5 MB, excluded from
                                                             normal profile reads)
-leads          (id, company_name, url, contact_name,
-                contact_email, linkedin_url,
-                whatsapp_number, fetched_context,      — fetched_context: still unfetched, null for now
-                status, created_at)                    — status: new | drafted | sent | replied | closed
+leads          (id, company_name, url, contact_name,   — company_name and url are both nullable: a
+                contact_email, linkedin_url,              lead can be a company, a person (e.g. a
+                whatsapp_number, fetched_context,         LinkedIn contact with no company attached),
+                status, created_at)                       or both — at least one of company_name /
+                                                            contact_name / linkedin_url is required
+                                                          — fetched_context: still unfetched, null for now
+                                                          — status: new | drafted | sent | replied | closed
 outreach_log   (id, lead_id, channel, tone,            — channel: email | linkedin_dm |
                 draft_text, final_sent_text,              linkedin_connection | whatsapp | cover_letter
                 sent_at, replied,

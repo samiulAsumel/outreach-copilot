@@ -125,9 +125,23 @@ export function buildDraftPrompt(input: DraftPromptInput): ChatMessage[] {
   const { resumeText, lead, tone, channel, portfolioLink, hasCvFile } = input;
   const spec = CHANNEL_SPECS[channel];
   const greeting = lead.contact_name ? `addressed to ${lead.contact_name}` : 'with a generic greeting (no contact name is known)';
-  const companyContext = lead.fetched_context
-    ? `Additional context fetched from the company's website:\n${lead.fetched_context}`
-    : `No additional company context is available yet — write from the company name and resume alone. Do not invent details about the company.`;
+  const hasCompany = Boolean(lead.company_name);
+
+  // A lead can now be just a person (e.g. a LinkedIn contact with no
+  // company attached) — the honesty guard extends here too. "This company
+  // likely needs X" is a claim the model has no basis for when there's no
+  // company at all, so a person-only lead gets an explicit instruction not
+  // to invent one, the same way FORBIDDEN_CLAIMS forbids invented skills.
+  const targetSection = hasCompany
+    ? `Target company: ${lead.company_name}\nCompany URL: ${lead.url}\n${
+        lead.fetched_context
+          ? `Additional context fetched from the company's website:\n${lead.fetched_context}`
+          : `No additional company context is available yet — write from the company name and resume alone. Do not invent details about the company.`
+      }`
+    : `This is direct professional networking outreach to an individual — there is no specific company or job opening attached to this lead. Do not invent one. Write as a genuine professional-to-professional message grounded only in the resume background below.`;
+  const purposeInstruction = hasCompany
+    ? 'connecting the resume background to what this company likely needs'
+    : 'briefly explaining why you\'re reaching out to connect professionally, grounded in the resume background — not inventing a company, role, or need on their part';
 
   const outputInstruction = spec.hasSubjectLine
     ? 'Output only the message body (including a subject line as the first line, prefixed "Subject: "). No preamble, no explanation, no markdown formatting.'
@@ -146,11 +160,9 @@ ${outputInstruction}`;
   const user = `Resume / background:
 ${resumeText}
 
-Target company: ${lead.company_name}
-Company URL: ${lead.url}
-${companyContext}
+${targetSection}
 
-Write a ${spec.label} (${spec.lengthInstruction}) ${greeting}, connecting the resume background to what this company likely needs, and asking for a conversation.`;
+Write a ${spec.label} (${spec.lengthInstruction}) ${greeting}, ${purposeInstruction}, and asking for a conversation.`;
 
   return [
     { role: 'system', content: system },
