@@ -1,4 +1,4 @@
-import type { Env, ResumeProfile, CvFile, Lead, LeadStatus, Tone, Channel, OutreachLogEntry, AnalyticsSummary } from '../types';
+import type { Env, ResumeProfile, CvFile, Lead, LeadStatus, LinkedinStatus, Tone, Channel, OutreachLogEntry, AnalyticsSummary } from '../types';
 
 // Every query in this file uses D1's .bind() prepared statements — never
 // string-concatenated SQL — even though this is a single-user tool with no
@@ -133,6 +133,12 @@ export async function updateLeadStatus(
 export async function setLeadReplied(env: Env, id: number, replied: boolean): Promise<Lead | null> {
   const status: LeadStatus = replied ? 'replied' : 'sent';
   return env.DB.prepare('UPDATE leads SET status = ?1 WHERE id = ?2 RETURNING *')
+    .bind(status, id)
+    .first<Lead>();
+}
+
+export async function updateLeadLinkedinStatus(env: Env, id: number, status: LinkedinStatus): Promise<Lead | null> {
+  return env.DB.prepare('UPDATE leads SET linkedin_status = ?1 WHERE id = ?2 RETURNING *')
     .bind(status, id)
     .first<Lead>();
 }

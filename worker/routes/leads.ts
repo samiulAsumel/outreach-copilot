@@ -1,9 +1,10 @@
-import type { Env, LeadStatus } from '../types';
+import type { Env, LeadStatus, LinkedinStatus } from '../types';
 import { jsonOk, noContent, badRequest, notFound } from '../lib/http';
 import * as db from '../lib/db';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_STATUSES: LeadStatus[] = ['new', 'drafted', 'sent', 'replied', 'closed'];
+const VALID_LINKEDIN_STATUSES: LinkedinStatus[] = ['not_connected', 'requested', 'connected'];
 
 export async function handleListLeads(env: Env): Promise<Response> {
   return jsonOk(await db.listLeads(env));
@@ -94,7 +95,15 @@ export async function handleUpdateLead(request: Request, env: Env, id: number): 
     return jsonOk(updated, 'Lead updated');
   }
 
-  throw badRequest('Nothing to update — provide status or replied');
+  if (typeof body.linkedin_status === 'string') {
+    if (!VALID_LINKEDIN_STATUSES.includes(body.linkedin_status as LinkedinStatus)) {
+      throw badRequest('linkedin_status must be one of: ' + VALID_LINKEDIN_STATUSES.join(', '));
+    }
+    const updated = await db.updateLeadLinkedinStatus(env, id, body.linkedin_status as LinkedinStatus);
+    return jsonOk(updated, 'Lead updated');
+  }
+
+  throw badRequest('Nothing to update — provide status, replied, or linkedin_status');
 }
 
 export async function handleDeleteLead(env: Env, id: number): Promise<Response> {

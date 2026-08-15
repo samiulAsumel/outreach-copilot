@@ -177,7 +177,7 @@ export const api = {
     linkedin_url?: string;
     whatsapp_number?: string;
   }) => request<Lead>('/api/v1/leads', { method: 'POST', body: JSON.stringify(input) }),
-  updateLead: (id: number, patch: { status?: string; replied?: boolean }) =>
+  updateLead: (id: number, patch: { status?: string; replied?: boolean; linkedin_status?: string }) =>
     request<Lead>(`/api/v1/leads/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteLead: (id: number) => request<void>(`/api/v1/leads/${id}`, { method: 'DELETE' }),
 

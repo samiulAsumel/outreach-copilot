@@ -19,6 +19,11 @@ export interface ResumeProfile {
   updated_at: string | null;
 }
 
+// LinkedIn's own connection lifecycle, tracked separately from LeadStatus —
+// connecting and getting a reply are different events on LinkedIn
+// specifically.
+export type LinkedinStatus = 'not_connected' | 'requested' | 'connected';
+
 export interface Lead {
   id: number;
   // Both nullable — a lead can be just a person (e.g. a LinkedIn contact
@@ -31,6 +36,7 @@ export interface Lead {
   whatsapp_number: string | null;
   fetched_context: string | null;
   status: LeadStatus;
+  linkedin_status: LinkedinStatus;
   created_at: string;
 }
 
