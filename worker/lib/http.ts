@@ -10,8 +10,8 @@ import type { Env } from '../types';
 export function corsHeaders(env: Env): HeadersInit {
   return {
     'Access-Control-Allow-Origin': env.CORS_ORIGIN,
-    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET, PUT, POST, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   };
 }
 
@@ -56,6 +56,10 @@ export function jsonError(err: AppError): Response {
 
 export function notFound(resource: string): AppError {
   return new AppError(`${resource} not found`, 404, `${resource.toUpperCase()}_NOT_FOUND`);
+}
+
+export function unauthorized(message: string): AppError {
+  return new AppError(message, 401, 'UNAUTHORIZED');
 }
 
 export function badRequest(message: string, details: unknown[] = []): AppError {

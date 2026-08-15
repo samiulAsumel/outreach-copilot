@@ -2,8 +2,13 @@
 // shared import: the SPA build (tsconfig.json, lib: DOM) and the Worker
 // build (worker/tsconfig.json, no DOM) are intentionally isolated project
 // boundaries — see the comment in tsconfig.json.
-export type LeadStatus = 'new' | 'drafted' | 'sent' | 'replied';
+export type LeadStatus = 'new' | 'drafted' | 'sent' | 'replied' | 'closed';
 export type Tone = 'formal' | 'casual';
+
+// Every channel produces a draft the user copies and sends by hand — see
+// worker/lib/prompt.ts's CHANNEL_SPECS for the format rules per channel.
+// Nothing here ever sends on the user's behalf.
+export type Channel = 'email' | 'linkedin_dm' | 'linkedin_connection' | 'whatsapp' | 'cover_letter';
 
 export interface ResumeProfile {
   id: 1;
@@ -20,14 +25,17 @@ export interface Lead {
   url: string;
   contact_name: string | null;
   contact_email: string | null;
+  linkedin_url: string | null;
+  whatsapp_number: string | null;
   fetched_context: string | null;
   status: LeadStatus;
   created_at: string;
 }
 
-export interface EmailLogEntry {
+export interface OutreachLogEntry {
   id: number;
   lead_id: number;
+  channel: Channel;
   tone: Tone | null;
   draft_text: string;
   final_sent_text: string | null;
@@ -35,4 +43,14 @@ export interface EmailLogEntry {
   replied: 0 | 1;
   followup_due_date: string | null;
   created_at: string;
+}
+
+export interface AnalyticsSummary {
+  leads_total: number;
+  leads_by_status: Record<LeadStatus, number>;
+  sent_total: number;
+  replied_total: number;
+  reply_rate: number;
+  followups_overdue: number;
+  drafts_by_channel: Record<Channel, number>;
 }

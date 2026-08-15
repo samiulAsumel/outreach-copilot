@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { api, cvDownloadUrl } from '../api/client';
-import type { Lead, Tone } from '../types';
+import { api } from '../api/client';
+import { CHANNEL_LABEL } from '../lib/channels';
+import type { Lead, Tone, Channel } from '../types';
 
 interface DraftPanelProps {
   lead: Lead | null;
@@ -8,11 +9,12 @@ interface DraftPanelProps {
   hasCvFile: boolean;
   onLeadChanged: (lead: Lead) => void;
   onDraftGenerated: () => void;
+  onHistoryChanged: () => void;
 }
 
-// Subject line comes back as the first line of the draft ("Subject: ...",
-// see worker/lib/prompt.ts's output instruction) — split it out so the
-// mailto: link can use it as the actual subject instead of the whole body.
+// Only email's prompt asks the model for a "Subject: ..." first line
+// (worker/lib/prompt.ts's CHANNEL_SPECS) — every other channel returns a
+// plain body with no line to strip.
 function splitSubject(draftText: string): { subject: string; body: string } {
   const lines = draftText.split('\n');
   if (lines[0]?.toLowerCase().startsWith('subject:')) {
@@ -21,8 +23,16 @@ function splitSubject(draftText: string): { subject: string; body: string } {
   return { subject: '', body: draftText };
 }
 
-export function DraftPanel({ lead, hasProfile, hasCvFile, onLeadChanged, onDraftGenerated }: DraftPanelProps) {
+// wa.me has no way to pre-select a specific contact by name, only by phone
+// number — strip everything but digits since users may paste a number with
+// spaces, dashes, or a leading +.
+function whatsappNumberDigits(raw: string): string {
+  return raw.replace(/\D/g, '');
+}
+
+export function DraftPanel({ lead, hasProfile, hasCvFile, onLeadChanged, onDraftGenerated, onHistoryChanged }: DraftPanelProps) {
   const [tone, setTone] = useState<Tone>('formal');
+  const [channel, setChannel] = useState<Channel>('email');
   const [draftText, setDraftText] = useState('');
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
@@ -35,7 +45,7 @@ export function DraftPanel({ lead, hasProfile, hasCvFile, onLeadChanged, onDraft
     setError(null);
     setCopied(false);
     setSentConfirmed(false);
-  }, [lead?.id]);
+  }, [lead?.id, channel]);
 
   if (!lead) {
     return (
@@ -52,10 +62,11 @@ export function DraftPanel({ lead, hasProfile, hasCvFile, onLeadChanged, onDraft
     setError(null);
     setSentConfirmed(false);
     try {
-      const entry = await api.generateDraft(lead.id, tone);
+      const entry = await api.generateDraft(lead.id, tone, channel);
       setDraftText(entry.draft_text);
       onLeadChanged({ ...lead, status: 'drafted' });
       onDraftGenerated();
+      onHistoryChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate draft');
     } finally {
@@ -70,8 +81,17 @@ export function DraftPanel({ lead, hasProfile, hasCvFile, onLeadChanged, onDraft
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // Most commonly a missing clipboard-write permission or an unfocused
-      // document — "Open in email client" below is the fallback path.
-      setError('Could not copy to clipboard. Select the text above and copy it manually, or use "Open in email client".');
+      // document — the channel-specific "Open in ..." action below is the
+      // fallback path where one exists.
+      setError('Could not copy to clipboard. Select the text above and copy it manually.');
+    }
+  }
+
+  async function downloadCv() {
+    try {
+      await api.downloadCv();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to download CV');
     }
   }
 
@@ -80,9 +100,10 @@ export function DraftPanel({ lead, hasProfile, hasCvFile, onLeadChanged, onDraft
     setSending(true);
     setError(null);
     try {
-      await api.markSent(lead.id, draftText);
+      await api.markSent(lead.id, draftText, channel);
       onLeadChanged({ ...lead, status: 'sent' });
       setSentConfirmed(true);
+      onHistoryChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to mark as sent');
     } finally {
@@ -94,6 +115,12 @@ export function DraftPanel({ lead, hasProfile, hasCvFile, onLeadChanged, onDraft
   const mailto = lead.contact_email
     ? `mailto:${encodeURIComponent(lead.contact_email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
     : `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const whatsappHref = `https://wa.me/${lead.whatsapp_number ? whatsappNumberDigits(lead.whatsapp_number) : ''}?text=${encodeURIComponent(draftText)}`;
+  // mailto: and wa.me both accept the message as a URL parameter; LinkedIn
+  // has no equivalent deep link for pre-filling a DM or connection note, so
+  // the only "open" action for either LinkedIn channel is the profile URL
+  // itself — the message still has to be pasted in by hand once there.
+  const allowsAttachment = channel === 'email' || channel === 'cover_letter';
 
   return (
     <section className="panel">
@@ -103,13 +130,23 @@ export function DraftPanel({ lead, hasProfile, hasCvFile, onLeadChanged, onDraft
 
       <div className="draft-panel__controls">
         <label>
+          Channel
+          <select value={channel} onChange={(e) => setChannel(e.target.value as Channel)}>
+            {(Object.keys(CHANNEL_LABEL) as Channel[]).map((c) => (
+              <option key={c} value={c}>
+                {CHANNEL_LABEL[c]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           Tone
           <select value={tone} onChange={(e) => setTone(e.target.value as Tone)}>
             <option value="formal">Formal</option>
             <option value="casual">Casual</option>
           </select>
         </label>
-        <button type="button" onClick={generate} disabled={generating || !hasProfile}>
+        <button type="button" className="btn btn--accent" onClick={generate} disabled={generating || !hasProfile}>
           {generating ? 'Generating…' : draftText ? 'Regenerate' : 'Generate draft'}
         </button>
       </div>
@@ -125,22 +162,33 @@ export function DraftPanel({ lead, hasProfile, hasCvFile, onLeadChanged, onDraft
             rows={14}
           />
           <div className="panel__actions">
-            <button type="button" onClick={copyToClipboard}>
+            <button type="button" className="btn btn--accent" onClick={copyToClipboard}>
               {copied ? 'Copied!' : 'Copy'}
             </button>
-            {hasCvFile && (
-              // mailto: links cannot carry attachments (a hard limitation of
-              // the URI scheme, not something worth working around) — this
-              // is the reminder to grab the file and attach it by hand
-              // before actually sending.
-              <a className="button-like" href={cvDownloadUrl}>
+            {allowsAttachment && hasCvFile && (
+              // Neither mailto: nor wa.me can carry a file attachment (a
+              // hard limitation of both URI schemes) — this is the reminder
+              // to grab the file and attach it by hand before sending.
+              <button type="button" className="btn btn--accent" onClick={downloadCv}>
                 Download CV
+              </button>
+            )}
+            {channel === 'email' && (
+              <a className="btn btn--accent" href={mailto}>
+                Open in email client
               </a>
             )}
-            <a className="button-like" href={mailto}>
-              Open in email client
-            </a>
-            <button type="button" onClick={markSent} disabled={sending}>
+            {channel === 'whatsapp' && (
+              <a className="btn btn--accent" href={whatsappHref} target="_blank" rel="noreferrer">
+                Open in WhatsApp
+              </a>
+            )}
+            {(channel === 'linkedin_dm' || channel === 'linkedin_connection') && lead.linkedin_url && (
+              <a className="btn btn--accent" href={lead.linkedin_url} target="_blank" rel="noreferrer">
+                Open LinkedIn profile
+              </a>
+            )}
+            <button type="button" className="btn btn--accent" onClick={markSent} disabled={sending}>
               {sending ? 'Saving…' : 'Mark sent'}
             </button>
             {sentConfirmed && <span className="panel__meta">Logged as sent. Follow up in 7 days if no reply.</span>}

@@ -11,6 +11,8 @@ export function LeadForm({ onCreated }: LeadFormProps) {
   const [url, setUrl] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,12 +26,16 @@ export function LeadForm({ onCreated }: LeadFormProps) {
         url,
         contact_name: contactName || undefined,
         contact_email: contactEmail || undefined,
+        linkedin_url: linkedinUrl || undefined,
+        whatsapp_number: whatsappNumber || undefined,
       });
       onCreated(lead);
       setCompanyName('');
       setUrl('');
       setContactName('');
       setContactEmail('');
+      setLinkedinUrl('');
+      setWhatsappNumber('');
     } catch (err) {
       // Route validation (worker/routes/leads.ts) returns per-field messages
       // in `details` — surface those rather than the generic message so a
@@ -70,7 +76,25 @@ export function LeadForm({ onCreated }: LeadFormProps) {
           Contact email (optional)
           <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
         </label>
-        <button type="submit" disabled={submitting}>
+        <label>
+          LinkedIn profile URL (optional)
+          <input
+            type="url"
+            value={linkedinUrl}
+            onChange={(e) => setLinkedinUrl(e.target.value)}
+            placeholder="https://linkedin.com/in/..."
+          />
+        </label>
+        <label>
+          WhatsApp number (optional)
+          <input
+            type="tel"
+            value={whatsappNumber}
+            onChange={(e) => setWhatsappNumber(e.target.value)}
+            placeholder="+880..."
+          />
+        </label>
+        <button type="submit" className="btn btn--primary" disabled={submitting}>
           {submitting ? 'Adding…' : 'Add lead'}
         </button>
       </form>

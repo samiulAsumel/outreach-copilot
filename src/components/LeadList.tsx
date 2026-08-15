@@ -14,11 +14,21 @@ const STATUS_LABEL: Record<Lead['status'], string> = {
   drafted: 'Drafted',
   sent: 'Sent',
   replied: 'Replied',
+  closed: 'Closed',
 };
 
 export function LeadList({ leads, selectedLeadId, onSelect, onChanged, onDeleted }: LeadListProps) {
   async function toggleReplied(lead: Lead) {
     const updated = await api.updateLead(lead.id, { replied: lead.status !== 'replied' });
+    onChanged(updated);
+  }
+
+  // 'closed' means the user has decided not to pursue this lead further —
+  // distinct from 'replied', which just means they heard back and may still
+  // be in conversation. Toggling back to 'new' is the only way out of
+  // 'closed' short of deleting the lead outright.
+  async function toggleClosed(lead: Lead) {
+    const updated = await api.updateLead(lead.id, { status: lead.status === 'closed' ? 'new' : 'closed' });
     onChanged(updated);
   }
 
@@ -57,7 +67,10 @@ export function LeadList({ leads, selectedLeadId, onSelect, onChanged, onDeleted
                   Replied
                 </label>
               ) : null}
-              <button type="button" className="lead-list__delete" onClick={() => remove(lead)} aria-label={`Delete ${lead.company_name}`}>
+              <button type="button" className="btn btn--ghost" onClick={() => toggleClosed(lead)}>
+                {lead.status === 'closed' ? 'Reopen' : 'Close'}
+              </button>
+              <button type="button" className="btn btn--danger" onClick={() => remove(lead)} aria-label={`Delete ${lead.company_name}`}>
                 Delete
               </button>
             </div>

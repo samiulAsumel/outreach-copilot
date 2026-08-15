@@ -8,14 +8,55 @@
   --color-accent: #f97316;
   --color-bg: #ffffff;
   --color-text: #1f2937;
+  --color-text-muted: #6b7280;
   --color-border: #d1d5db;
   --color-bg-muted: #f3f4f6;
   --color-danger: #b91c1c;
+  --color-success: #166534;
+  --color-warning: #92400e;
+  /* Status-badge backgrounds are alpha overlays of their own hue rather than
+     fixed pastels — the same value reads correctly over both the light and
+     dark surface without a separate dark-mode redefinition. */
+  --color-success-bg: rgb(22 163 74 / 15%);
+  --color-warning-bg: rgb(217 119 6 / 15%);
+  --color-active-bg: rgb(30 58 95 / 8%);
   --radius: 6px;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
   --space-6: 1.5rem;
+}
+
+/* Dark mode: the OS preference by default, overridable per-visitor by the
+   header toggle (App.tsx sets [data-theme] and persists it to localStorage).
+   `:root:not([data-theme="light"])` lets an explicit "dark" choice win here
+   too, so both paths converge on the same block instead of duplicating it. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-primary: #60a5fa;
+    --color-bg: #111827;
+    --color-bg-muted: #1f2937;
+    --color-text: #e5e7eb;
+    --color-text-muted: #9ca3af;
+    --color-border: #374151;
+    --color-danger: #f87171;
+    --color-success: #4ade80;
+    --color-warning: #fbbf24;
+    --color-active-bg: rgb(96 165 250 / 15%);
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-primary: #60a5fa;
+  --color-bg: #111827;
+  --color-bg-muted: #1f2937;
+  --color-text: #e5e7eb;
+  --color-text-muted: #9ca3af;
+  --color-border: #374151;
+  --color-danger: #f87171;
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-active-bg: rgb(96 165 250 / 15%);
 }
 
 * {
@@ -39,6 +80,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
   margin-bottom: var(--space-6);
 }
 
@@ -46,6 +89,35 @@ body {
   color: var(--color-primary);
   font-size: 1.5rem;
   margin: 0;
+}
+
+.app__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.login-screen__form {
+  width: 100%;
+  max-width: 320px;
+}
+
+.login-screen__form h1 {
+  color: var(--color-primary);
+  font-size: 1.3rem;
+  margin-top: 0;
+}
+
+.login-screen__form button {
+  width: 100%;
 }
 
 .app__grid {
@@ -76,7 +148,7 @@ body {
 }
 
 .panel__hint {
-  color: #6b7280;
+  color: var(--color-text-muted);
   font-size: 0.9rem;
 }
 
@@ -90,7 +162,14 @@ body {
 
 .panel__meta {
   font-size: 0.85rem;
-  color: #6b7280;
+  color: var(--color-text-muted);
+}
+
+.panel__unsaved {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  margin-top: var(--space-2);
 }
 
 label {
@@ -147,41 +226,53 @@ textarea {
   color: var(--color-text);
 }
 
-button,
-.button-like {
+/* Every actionable button/link in the app carries an explicit `.btn` +
+   variant pair — no implicit styling from `type=` or element tag. A new
+   button anywhere always states its own visual weight instead of silently
+   inheriting whatever the base selector happened to default to. */
+.btn {
   display: inline-block;
   font: inherit;
   padding: 0.5rem 1rem;
   border-radius: var(--radius);
-  border: 1px solid var(--color-primary);
-  background: var(--color-primary);
-  color: #fff;
+  border: 1px solid transparent;
   cursor: pointer;
   text-decoration: none;
 }
 
-button:disabled {
+.btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* Secondary actions (Generate draft, Copy, Mark sent, ...) get the accent
-   color; the lead-row selector button is a `type="button"` too but is a
-   list item, not an action, so it's explicitly excluded here rather than
-   inheriting a call-to-action look it shouldn't have. */
-button[type='button']:not(.lead-list__delete):not(.lead-list__main),
-.button-like {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
+.btn--primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
 }
 
-.lead-list__delete {
+.btn--accent {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.btn--danger {
   background: transparent;
   border-color: var(--color-danger);
   color: var(--color-danger);
   padding: 0.25rem 0.6rem;
   font-size: 0.85rem;
 }
+
+/* The lead-row select button is a list item, not an action — it inherits no
+   .btn variant, just enough reset to sit flush in the row (see .lead-list__main below). */
 
 .error-text {
   color: var(--color-danger);
@@ -214,7 +305,7 @@ button[type='button']:not(.lead-list__delete):not(.lead-list__main),
 
 .lead-list__item--active {
   border-color: var(--color-primary);
-  background: #eef2f7;
+  background: var(--color-active-bg);
 }
 
 .lead-list__main {
@@ -245,19 +336,29 @@ button[type='button']:not(.lead-list__delete):not(.lead-list__main),
 
 .lead-list__status--sent,
 .lead-list__status--replied {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--color-success-bg);
+  color: var(--color-success);
 }
 
 .lead-list__status--drafted {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
 }
 
 .lead-list__actions {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+
+.lead-list__actions .btn--ghost {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.lead-list__status--closed {
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
 }
 
 .lead-list__replied {
@@ -275,12 +376,131 @@ button[type='button']:not(.lead-list__delete):not(.lead-list__main),
   margin-bottom: var(--space-3);
 }
 
+.panel__subheading {
+  font-size: 0.9rem;
+  color: var(--color-primary);
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.stat-tile-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-3);
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: var(--space-3);
+  background: var(--color-bg-muted);
+  border-radius: var(--radius);
+}
+
+.stat-tile__label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.stat-tile__value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  font-variant-numeric: proportional-nums;
+}
+
+.bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(6rem, 11rem) 1fr 2.5rem;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.85rem;
+}
+
+.bar-row__label {
+  color: var(--color-text);
+}
+
+.bar-row__track {
+  background: var(--color-bg-muted);
+  border-radius: 4px;
+  height: 20px;
+  overflow: hidden;
+}
+
+.bar-row__fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 0 4px 4px 0;
+  min-width: 2px;
+}
+
+.bar-row__value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.lead-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.lead-timeline__entry {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+}
+
+.lead-timeline__entry-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+}
+
+.lead-timeline__tone {
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  text-transform: capitalize;
+}
+
+.lead-timeline__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.lead-timeline__replied-badge {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.lead-timeline__overdue-badge {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
 .quota-bar {
   display: flex;
   align-items: baseline;
   gap: 0.4rem;
   font-size: 0.9rem;
-  color: #6b7280;
+  color: var(--color-text-muted);
 }
 
 .quota-bar__count {

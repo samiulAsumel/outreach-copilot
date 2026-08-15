@@ -1,4 +1,4 @@
-import type { Lead, Tone } from '../types';
+import type { Lead, Tone, Channel } from '../types';
 
 // Skills/tools the AI must never attribute to the user in a generated email.
 // Sourced from 00.Resume/samiulAsumel.cv/CLAUDE.md's "hard content rules" —
@@ -26,6 +26,52 @@ const HONESTY_RULES = `Hard rules — do not violate these, even if it would mak
 - The port operations background is the primary professional identity — do not reduce it to a footnote in favor of the software skills.
 - No marketing slogans, no "synergy"/"passionate"/"rockstar" language, no emoji, no arrow-chain buzzword formulas ("identify → analyze → design → build"). Write like a specific person describing specific work.`;
 
+// Per-channel shape rules. This is the one place that knows a LinkedIn
+// connection note has a hard 300-character platform limit, or that a cover
+// letter is long-form and formal by convention — every other function in
+// this file (HONESTY_RULES, closingInstruction) applies identically across
+// all five, on purpose: the channel changes the container, never the truth
+// bar.
+interface ChannelSpec {
+  label: string;
+  hasSubjectLine: boolean;
+  allowsAttachmentMention: boolean;
+  lengthInstruction: string;
+}
+
+export const CHANNEL_SPECS: Record<Channel, ChannelSpec> = {
+  email: {
+    label: 'cold outreach email',
+    hasSubjectLine: true,
+    allowsAttachmentMention: true,
+    lengthInstruction: '120-200 words',
+  },
+  linkedin_dm: {
+    label: 'LinkedIn direct message',
+    hasSubjectLine: false,
+    allowsAttachmentMention: false,
+    lengthInstruction: '60-120 words — shorter than an email, written the way one professional messages another on LinkedIn, not an email pasted into a chat box',
+  },
+  linkedin_connection: {
+    label: 'LinkedIn connection request note',
+    hasSubjectLine: false,
+    allowsAttachmentMention: false,
+    lengthInstruction: 'a hard maximum of 300 characters (LinkedIn\'s platform limit for connection notes) — one or two sentences, no greeting/sign-off filler',
+  },
+  whatsapp: {
+    label: 'WhatsApp message',
+    hasSubjectLine: false,
+    allowsAttachmentMention: false,
+    lengthInstruction: '40-80 words, plain and direct, the way a short WhatsApp text actually reads — no formal letter structure',
+  },
+  cover_letter: {
+    label: 'job application cover letter',
+    hasSubjectLine: false,
+    allowsAttachmentMention: true,
+    lengthInstruction: '250-400 words, formal cover-letter structure (opening, why this role/company, relevant background, closing)',
+  },
+};
+
 function toneInstruction(tone: Tone): string {
   return tone === 'formal'
     ? 'Tone: formal and professional. Full sentences, no contractions, address the recipient respectfully.'
@@ -39,17 +85,22 @@ function toneInstruction(tone: Tone): string {
 // *wording* still has to forbid the false case explicitly, the same way
 // FORBIDDEN_CLAIMS does for skills — an implicit "just don't mention it if
 // there's nothing to mention" is exactly the kind of instruction models drift
-// on.
-function closingInstruction(portfolioLink: string | null, hasCvFile: boolean): string {
+// on. Channels without an attachment concept at all (DM, connection note,
+// WhatsApp) forbid the mention unconditionally, regardless of hasCvFile.
+function closingInstruction(portfolioLink: string | null, hasCvFile: boolean, spec: ChannelSpec): string {
   const lines: string[] = [];
   if (portfolioLink) {
     lines.push(`Close with a sign-off that includes this exact portfolio link: ${portfolioLink}. Do not alter it or invent a different one.`);
   }
-  lines.push(
-    hasCvFile
-      ? 'A CV is attached separately (not by you — the sender attaches it manually before sending). You may include one short line noting that a CV is attached.'
-      : 'No CV is attached. Do not mention an attached CV, resume attachment, or "please find attached" anywhere in the email.'
-  );
+  if (!spec.allowsAttachmentMention) {
+    lines.push('This channel has no attachments. Do not mention an attached CV, resume attachment, or "please find attached" anywhere in the message.');
+  } else {
+    lines.push(
+      hasCvFile
+        ? 'A CV is attached separately (not by you — the sender attaches it manually before sending). You may include one short line noting that a CV is attached.'
+        : 'No CV is attached. Do not mention an attached CV, resume attachment, or "please find attached" anywhere in the message.'
+    );
+  }
   return lines.join('\n');
 }
 
@@ -57,6 +108,7 @@ export interface DraftPromptInput {
   resumeText: string;
   lead: Pick<Lead, 'company_name' | 'url' | 'contact_name' | 'fetched_context'>;
   tone: Tone;
+  channel: Channel;
   portfolioLink: string | null;
   hasCvFile: boolean;
 }
@@ -70,21 +122,26 @@ export interface ChatMessage {
 // that touches the network, so this function can be unit tested (see
 // tests/prompt.test.ts) without a Workers AI binding or any mocking.
 export function buildDraftPrompt(input: DraftPromptInput): ChatMessage[] {
-  const { resumeText, lead, tone, portfolioLink, hasCvFile } = input;
+  const { resumeText, lead, tone, channel, portfolioLink, hasCvFile } = input;
+  const spec = CHANNEL_SPECS[channel];
   const greeting = lead.contact_name ? `addressed to ${lead.contact_name}` : 'with a generic greeting (no contact name is known)';
   const companyContext = lead.fetched_context
     ? `Additional context fetched from the company's website:\n${lead.fetched_context}`
     : `No additional company context is available yet — write from the company name and resume alone. Do not invent details about the company.`;
 
-  const system = `You write cold outreach emails on behalf of a real job seeker. Every email you draft will be reviewed and edited by them before sending, but it must be honest and specific as written.
+  const outputInstruction = spec.hasSubjectLine
+    ? 'Output only the message body (including a subject line as the first line, prefixed "Subject: "). No preamble, no explanation, no markdown formatting.'
+    : 'Output only the message body — no subject line, no preamble, no explanation, no markdown formatting.';
+
+  const system = `You write cold outreach messages on behalf of a real job seeker. Every message you draft will be reviewed and edited by them before sending, but it must be honest and specific as written.
 
 ${HONESTY_RULES}
 
 ${toneInstruction(tone)}
 
-${closingInstruction(portfolioLink, hasCvFile)}
+${closingInstruction(portfolioLink, hasCvFile, spec)}
 
-Output only the email body (including a subject line as the first line, prefixed "Subject: "). No preamble, no explanation, no markdown formatting.`;
+${outputInstruction}`;
 
   const user = `Resume / background:
 ${resumeText}
@@ -93,7 +150,7 @@ Target company: ${lead.company_name}
 Company URL: ${lead.url}
 ${companyContext}
 
-Write a short cold outreach email (120-200 words) ${greeting}, connecting the resume background to what this company likely needs, and asking for a conversation.`;
+Write a ${spec.label} (${spec.lengthInstruction}) ${greeting}, connecting the resume background to what this company likely needs, and asking for a conversation.`;
 
   return [
     { role: 'system', content: system },

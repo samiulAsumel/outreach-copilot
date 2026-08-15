@@ -3,7 +3,7 @@ import { jsonOk, noContent, badRequest, notFound } from '../lib/http';
 import * as db from '../lib/db';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const VALID_STATUSES: LeadStatus[] = ['new', 'drafted', 'sent', 'replied'];
+const VALID_STATUSES: LeadStatus[] = ['new', 'drafted', 'sent', 'replied', 'closed'];
 
 export async function handleListLeads(env: Env): Promise<Response> {
   return jsonOk(await db.listLeads(env));
@@ -19,6 +19,8 @@ export async function handleCreateLead(request: Request, env: Env): Promise<Resp
   const rawUrl = typeof body.url === 'string' ? body.url.trim() : '';
   const contactName = typeof body.contact_name === 'string' && body.contact_name.trim() ? body.contact_name.trim() : null;
   const contactEmail = typeof body.contact_email === 'string' && body.contact_email.trim() ? body.contact_email.trim() : null;
+  const linkedinUrl = typeof body.linkedin_url === 'string' && body.linkedin_url.trim() ? body.linkedin_url.trim() : null;
+  const whatsappNumber = typeof body.whatsapp_number === 'string' && body.whatsapp_number.trim() ? body.whatsapp_number.trim() : null;
 
   const details: string[] = [];
   if (!companyName || companyName.length > 200) {
@@ -36,6 +38,13 @@ export async function handleCreateLead(request: Request, env: Env): Promise<Resp
   if (contactEmail && !EMAIL_RE.test(contactEmail)) {
     details.push('contact_email is not a valid email address');
   }
+  if (linkedinUrl) {
+    try {
+      new URL(linkedinUrl);
+    } catch {
+      details.push('linkedin_url must be a valid absolute URL');
+    }
+  }
   if (details.length > 0) {
     throw badRequest('Invalid lead data', details);
   }
@@ -45,6 +54,8 @@ export async function handleCreateLead(request: Request, env: Env): Promise<Resp
     url: parsedUrl!.toString(),
     contactName,
     contactEmail,
+    linkedinUrl,
+    whatsappNumber,
   });
   return jsonOk(lead, 'Lead created', 201);
 }

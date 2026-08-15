@@ -95,27 +95,34 @@ export function ProfileEditor({ profile, onSaved }: ProfileEditorProps) {
         />
       </label>
       <div className="panel__actions">
-        <button type="button" onClick={handleSave} disabled={saving || !dirty}>
+        <button type="button" className="btn btn--accent" onClick={handleSave} disabled={saving || !dirty}>
           {saving ? 'Saving…' : 'Save resume'}
         </button>
         {profile?.updated_at && <span className="panel__meta">Last saved {new Date(profile.updated_at).toLocaleString()}</span>}
       </div>
+      {dirty && !saving && (
+        <p className="panel__unsaved">Unsaved changes — click "Save resume" or they won't be kept.</p>
+      )}
       {error && <p className="error-text">{error}</p>}
 
+      <p className="panel__hint">
+        The CV file saves immediately on upload — separate from the resume text and portfolio
+        link above, which only save when you click "Save resume".
+      </p>
       <div className="cv-row">
         <span className="cv-row__label">CV file</span>
         {profile?.cv_file_name ? (
           <>
             <span className="cv-row__filename">{profile.cv_file_name}</span>
-            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={cvBusy}>
+            <button type="button" className="btn btn--accent" onClick={() => fileInputRef.current?.click()} disabled={cvBusy}>
               Replace
             </button>
-            <button type="button" onClick={handleRemoveCv} disabled={cvBusy} className="lead-list__delete">
+            <button type="button" onClick={handleRemoveCv} disabled={cvBusy} className="btn btn--danger">
               Remove
             </button>
           </>
         ) : (
-          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={cvBusy}>
+          <button type="button" className="btn btn--accent" onClick={() => fileInputRef.current?.click()} disabled={cvBusy}>
             {cvBusy ? 'Uploading…' : 'Upload CV'}
           </button>
         )}

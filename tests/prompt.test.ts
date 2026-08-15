@@ -3,7 +3,8 @@
 //   node --test --experimental-strip-types tests/*.test.ts
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDraftPrompt, FORBIDDEN_CLAIMS, type DraftPromptInput } from '../worker/lib/prompt.ts';
+import { buildDraftPrompt, CHANNEL_SPECS, FORBIDDEN_CLAIMS, type DraftPromptInput } from '../worker/lib/prompt.ts';
+import type { Channel } from '../worker/types.ts';
 
 const baseLead = {
   company_name: 'Acme Logistics',
@@ -19,9 +20,12 @@ const base: DraftPromptInput = {
   resumeText: 'Some resume text.',
   lead: baseLead,
   tone: 'formal',
+  channel: 'email',
   portfolioLink: null,
   hasCvFile: false,
 };
+
+const ALL_CHANNELS = Object.keys(CHANNEL_SPECS) as Channel[];
 
 test('system prompt names every forbidden claim explicitly', () => {
   const [system] = buildDraftPrompt(base);
@@ -95,4 +99,42 @@ test('hasCvFile: true permits mentioning an attached CV', () => {
 test('hasCvFile: false explicitly forbids mentioning an attachment — the honesty guard extends here too', () => {
   const [system] = buildDraftPrompt({ ...base, resumeText: 'x', hasCvFile: false });
   assert.match(system.content, /Do not mention an attached CV/);
+});
+
+test('every channel keeps the full honesty guard — the container changes, the truth bar does not', () => {
+  for (const channel of ALL_CHANNELS) {
+    const [system] = buildDraftPrompt({ ...base, resumeText: 'x', channel });
+    for (const claim of FORBIDDEN_CLAIMS) {
+      assert.ok(system.content.includes(claim), `channel "${channel}" must still forbid "${claim}"`);
+    }
+    assert.match(system.content, /self-directed practice in progress/, `channel "${channel}" dropped the RHCSA/RHCE honesty rule`);
+  }
+});
+
+test('only email asks for a subject line', () => {
+  for (const channel of ALL_CHANNELS) {
+    const [system] = buildDraftPrompt({ ...base, resumeText: 'x', channel });
+    if (channel === 'email') {
+      assert.match(system.content, /prefixed "Subject: "/);
+    } else {
+      assert.doesNotMatch(system.content, /Subject:/, `channel "${channel}" should not ask for a subject line`);
+    }
+  }
+});
+
+test('LinkedIn connection notes carry the 300-character platform limit', () => {
+  const [, user] = buildDraftPrompt({ ...base, resumeText: 'x', channel: 'linkedin_connection' });
+  assert.match(user.content, /300 character/);
+});
+
+test('channels without an attachment concept forbid mentioning one even when a CV file exists', () => {
+  for (const channel of ALL_CHANNELS) {
+    const spec = CHANNEL_SPECS[channel];
+    const [system] = buildDraftPrompt({ ...base, resumeText: 'x', channel, hasCvFile: true });
+    if (spec.allowsAttachmentMention) {
+      assert.match(system.content, /CV is attached/, `channel "${channel}" should permit the attachment mention`);
+    } else {
+      assert.match(system.content, /no attachments/i, `channel "${channel}" should forbid the attachment mention outright`);
+    }
+  }
 });

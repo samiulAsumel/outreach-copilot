@@ -1,4 +1,4 @@
-import type { Env, ResumeProfile, CvFile, Lead, LeadStatus, Tone, EmailLogEntry } from '../types';
+import type { Env, ResumeProfile, CvFile, Lead, LeadStatus, Tone, Channel, OutreachLogEntry, AnalyticsSummary } from '../types';
 
 // Every query in this file uses D1's .bind() prepared statements — never
 // string-concatenated SQL — even though this is a single-user tool with no
@@ -102,15 +102,17 @@ export interface NewLead {
   url: string;
   contactName: string | null;
   contactEmail: string | null;
+  linkedinUrl: string | null;
+  whatsappNumber: string | null;
 }
 
 export async function createLead(env: Env, lead: NewLead): Promise<Lead> {
   const result = await env.DB.prepare(
-    `INSERT INTO leads (company_name, url, contact_name, contact_email)
-     VALUES (?1, ?2, ?3, ?4)
+    `INSERT INTO leads (company_name, url, contact_name, contact_email, linkedin_url, whatsapp_number)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
      RETURNING *`
   )
-    .bind(lead.companyName, lead.url, lead.contactName, lead.contactEmail)
+    .bind(lead.companyName, lead.url, lead.contactName, lead.contactEmail, lead.linkedinUrl, lead.whatsappNumber)
     .first<Lead>();
   if (!result) {
     throw new Error('lead insert returned no row');
@@ -136,44 +138,59 @@ export async function setLeadReplied(env: Env, id: number, replied: boolean): Pr
 }
 
 export async function deleteLead(env: Env, id: number): Promise<void> {
-  // ON DELETE CASCADE (migrations/0001_init.sql) takes email_log rows with it.
+  // ON DELETE CASCADE (migrations/0001_init.sql) takes outreach_log rows with it.
   await env.DB.prepare('DELETE FROM leads WHERE id = ?1').bind(id).run();
 }
 
 export async function insertDraft(
   env: Env,
   leadId: number,
+  channel: Channel,
   tone: Tone,
   draftText: string
-): Promise<EmailLogEntry> {
+): Promise<OutreachLogEntry> {
   const result = await env.DB.prepare(
-    `INSERT INTO email_log (lead_id, tone, draft_text)
-     VALUES (?1, ?2, ?3)
+    `INSERT INTO outreach_log (lead_id, channel, tone, draft_text)
+     VALUES (?1, ?2, ?3, ?4)
      RETURNING *`
   )
-    .bind(leadId, tone, draftText)
-    .first<EmailLogEntry>();
+    .bind(leadId, channel, tone, draftText)
+    .first<OutreachLogEntry>();
   if (!result) {
-    throw new Error('email_log insert returned no row');
+    throw new Error('outreach_log insert returned no row');
   }
   return result;
 }
 
-export async function getLatestLogForLead(env: Env, leadId: number): Promise<EmailLogEntry | null> {
+// Channel-aware on purpose: a lead can now be drafted on multiple channels
+// before any of them is sent (e.g. email AND a LinkedIn DM), so "the latest
+// draft for this lead" without a channel filter could return the wrong
+// channel's draft to worker/routes/draft.ts's handleMarkSent — marking an
+// email as sent when the user actually just sent a LinkedIn message.
+export async function getLatestLogForLead(env: Env, leadId: number, channel: Channel): Promise<OutreachLogEntry | null> {
   return env.DB.prepare(
-    'SELECT * FROM email_log WHERE lead_id = ?1 ORDER BY created_at DESC LIMIT 1'
+    'SELECT * FROM outreach_log WHERE lead_id = ?1 AND channel = ?2 ORDER BY created_at DESC LIMIT 1'
+  )
+    .bind(leadId, channel)
+    .first<OutreachLogEntry>();
+}
+
+export async function getLogHistoryForLead(env: Env, leadId: number): Promise<OutreachLogEntry[]> {
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM outreach_log WHERE lead_id = ?1 ORDER BY created_at DESC'
   )
     .bind(leadId)
-    .first<EmailLogEntry>();
+    .all<OutreachLogEntry>();
+  return results;
 }
 
 export async function markSent(
   env: Env,
   logId: number,
   finalSentText: string
-): Promise<EmailLogEntry | null> {
+): Promise<OutreachLogEntry | null> {
   return env.DB.prepare(
-    `UPDATE email_log
+    `UPDATE outreach_log
      SET final_sent_text = ?1,
          sent_at = CURRENT_TIMESTAMP,
          followup_due_date = date('now', '+7 days')
@@ -181,12 +198,51 @@ export async function markSent(
      RETURNING *`
   )
     .bind(finalSentText, logId)
-    .first<EmailLogEntry>();
+    .first<OutreachLogEntry>();
 }
 
 export async function draftsGeneratedToday(env: Env): Promise<number> {
   const row = await env.DB.prepare(
-    `SELECT COUNT(*) AS n FROM email_log WHERE date(created_at) = date('now')`
+    `SELECT COUNT(*) AS n FROM outreach_log WHERE date(created_at) = date('now')`
   ).first<{ n: number }>();
   return row?.n ?? 0;
+}
+
+const ALL_STATUSES: LeadStatus[] = ['new', 'drafted', 'sent', 'replied', 'closed'];
+const ALL_CHANNELS: Channel[] = ['email', 'linkedin_dm', 'linkedin_connection', 'whatsapp', 'cover_letter'];
+
+// Every query here is a plain COUNT/GROUP BY over indexed columns — cheap
+// even as the log grows, and run in parallel since none depends on another.
+export async function getAnalytics(env: Env): Promise<AnalyticsSummary> {
+  const [statusRows, channelRows, sentTotalRow, repliedTotalRow, overdueRow] = await Promise.all([
+    env.DB.prepare('SELECT status, COUNT(*) AS n FROM leads GROUP BY status').all<{ status: LeadStatus; n: number }>(),
+    env.DB.prepare('SELECT channel, COUNT(*) AS n FROM outreach_log GROUP BY channel').all<{ channel: Channel; n: number }>(),
+    env.DB.prepare('SELECT COUNT(*) AS n FROM outreach_log WHERE sent_at IS NOT NULL').first<{ n: number }>(),
+    env.DB.prepare('SELECT COUNT(*) AS n FROM outreach_log WHERE replied = 1').first<{ n: number }>(),
+    env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM outreach_log
+       WHERE followup_due_date IS NOT NULL AND replied = 0 AND date(followup_due_date) < date('now')`
+    ).first<{ n: number }>(),
+  ]);
+
+  const leadsByStatus = Object.fromEntries(ALL_STATUSES.map((s) => [s, 0])) as Record<LeadStatus, number>;
+  for (const row of statusRows.results) leadsByStatus[row.status] = row.n;
+
+  const draftsByChannel = Object.fromEntries(ALL_CHANNELS.map((c) => [c, 0])) as Record<Channel, number>;
+  for (const row of channelRows.results) draftsByChannel[row.channel] = row.n;
+
+  const sentTotal = sentTotalRow?.n ?? 0;
+  const repliedTotal = repliedTotalRow?.n ?? 0;
+
+  return {
+    leads_total: Object.values(leadsByStatus).reduce((a, b) => a + b, 0),
+    leads_by_status: leadsByStatus,
+    sent_total: sentTotal,
+    replied_total: repliedTotal,
+    // Guarded against div-by-zero: a fresh account with nothing sent yet
+    // should read as "no rate yet," not NaN or Infinity.
+    reply_rate: sentTotal > 0 ? Math.round((repliedTotal / sentTotal) * 100) : 0,
+    followups_overdue: overdueRow?.n ?? 0,
+    drafts_by_channel: draftsByChannel,
+  };
 }
