@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "node node_modules/vite/bin/vite.js dev",
+    "dev:api": "node node_modules/wrangler/bin/wrangler.js dev --port 8787",
     "build": "node node_modules/vite/bin/vite.js build",
     "preview": "node node_modules/vite/bin/vite.js preview",
-    "deploy": "node node_modules/vite/bin/vite.js build && node node_modules/wrangler/bin/wrangler.js deploy",
+    "deploy:api": "node node_modules/wrangler/bin/wrangler.js deploy",
+    "deploy:web": "node node_modules/vite/bin/vite.js build && node node_modules/wrangler/bin/wrangler.js pages deploy dist --project-name=outreach-copilot",
     "lint": "node node_modules/eslint/bin/eslint.js .",
     "typecheck": "node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit && node node_modules/typescript/bin/tsc -p worker/tsconfig.json --noEmit",
     "test": "node --test --experimental-strip-types tests/*.test.ts",
@@ -19,7 +21,6 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.52.1",
     "@cloudflare/workers-types": "^5.20260815.1",
     "@eslint/js": "^9.19.0",
     "@types/react": "^19.2.18",

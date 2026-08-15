@@ -1,10 +1,11 @@
 name: CI
 
 # Lint, typecheck, and the prompt honesty-guard tests on every push/PR to
-# main. No deploy step here — deploys are run manually with
-# `npm run deploy` until a Cloudflare API token is added as a repo secret
-# (see README "Deploying"), matching how portbill and world-kitchen-atlas
-# handle it: CI verifies the code, it doesn't ship it.
+# main. No deploy step here — the frontend already redeploys itself via
+# Cloudflare's GitHub integration (Pages) on every push; the API Worker is
+# deployed manually with `npm run deploy:api` (see README "Deploying") until
+# a Cloudflare API token is added as a repo secret. CI verifies the code, it
+# doesn't ship the API side.
 on:
   push:
     branches: [main]

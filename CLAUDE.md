@@ -14,37 +14,47 @@ spec/roadmap this was built from.
 
 ```bash
 npm install
-cp .dev.vars.example .dev.vars          # Phase 0 needs no secrets — this is a no-op today
 node node_modules/wrangler/bin/wrangler.js d1 create outreach-copilot-db
 # ^ paste the returned database_id into wrangler.jsonc's d1_databases entry
 npm run db:migrate:local                 # applies migrations/*.sql to local D1
-npm run dev                              # vite dev server + Worker, one origin, HMR
+npm run dev:api                          # terminal 1 — wrangler dev on :8787
+npm run dev                              # terminal 2 — vite dev server, proxies /api to :8787
 npm run lint && npm run typecheck && npm test
-npm run deploy                           # builds + wrangler deploy (not run automatically by CI)
+npm run deploy:api                       # wrangler deploy (the API Worker)
+npm run deploy:web                       # vite build + wrangler pages deploy (the frontend)
 ```
 
-There is nothing to install beyond `npm install` — no external services need running
-locally. D1 and Workers AI both run inside `wrangler dev`'s local workerd runtime via
-the Cloudflare Vite plugin; Workers AI calls the real Cloudflare API even in local
-dev (there's no local emulator for it), so drafts generated locally cost real neurons
-against the free daily allocation.
+Frontend and API are two local processes because they're two separate deployments
+in production (Pages + a Worker) — see README "Getting started" / "Deploying".
+Workers AI calls the real Cloudflare API even in local dev (there's no local
+emulator for it), so drafts generated locally cost real neurons against the free
+daily allocation.
 
 ## Architecture
 
 ```
-src/            React SPA (Vite) — dashboard UI, calls /api/v1/* only
-worker/         API Worker — the only thing that touches D1 or Workers AI
-  index.ts        route dispatcher, catches AppError -> {success:false,...}
+src/            React SPA (Vite) — dashboard UI, calls the API via src/api/client.ts
+worker/         API Worker — the only thing that touches D1 or Workers AI, deployed
+                standalone (no build step; wrangler bundles the TS directly)
+  index.ts        route dispatcher; wraps every response in CORS (lib/http.ts)
   lib/db.ts        every D1 query, all prepared statements
   lib/prompt.ts    pure prompt builder — the honesty guard lives here, unit-tested
   lib/ai.ts        the only place env.AI.run() is called; Phase 2's fallback seam
 migrations/     D1 schema, applied with `wrangler d1 migrations apply`
 ```
 
-`wrangler.jsonc`'s `assets.run_worker_first: ["/api/*"]` means everything under
-`/api/*` hits `worker/index.ts`; everything else is the built SPA served as static
-assets. One Worker, one deploy, one origin — no CORS config needed, and Phase 1's
-session cookie will just work same-origin.
+**Frontend (Cloudflare Pages, `outreach-copilot.pages.dev`) and API (Cloudflare
+Worker, `outreach-copilot-api.sasas.workers.dev`) are two separate deployments on
+two different origins in production.** They talk over CORS: `worker/lib/http.ts`'s
+`withCors()` wraps every response, restricted to the `CORS_ORIGIN` var in
+`wrangler.jsonc`. The frontend knows the API's URL via `VITE_API_BASE_URL`, baked in
+at build time (`src/api/client.ts`) — empty in dev, where `vite.config.ts`'s dev
+server proxy makes `/api/*` same-origin against local `wrangler dev` instead.
+Cloudflare's GitHub integration (already installed on this account) auto-builds and
+redeploys the Pages project on every push to `main` — but its auto-build doesn't
+know to bundle this as a Vite SPA pointed at a separate API, so real deploys use
+`npm run deploy:web` (direct `wrangler pages deploy` of the built `dist/`) instead
+of relying on that auto-build.
 
 ## Critical conventions (these cause real bugs if missed)
 
@@ -70,13 +80,20 @@ session cookie will just work same-origin.
 - A lead can be redrafted (tone changed, regenerated) before being sent — `POST
   /api/v1/leads/:id/sent` always operates on that lead's *most recent* `email_log`
   row (`db.getLatestLogForLead`), not a specific log id passed by the client.
+- **CORS is applied in exactly one place**: `worker/index.ts` wraps every response
+  (including thrown errors) with `withCors()` and answers `OPTIONS` before routing.
+  Don't add CORS headers inside individual route handlers — it belongs at that one
+  seam so `CORS_ORIGIN` only ever needs to be right in one place.
 
 ## Out of scope (don't add unless asked)
 
-Password auth, Cloudflare deploy/`wrangler.jsonc` secrets, AI Gateway + Gemini
-fallback, company-URL auto-fetch (`fetched_context` stays `null`), WhatsApp summary —
-these are Phases 1-4 in `README.md`'s roadmap. Don't build ahead of the phase that's
-actually been asked for.
+AI Gateway + Gemini fallback, company-URL auto-fetch (`fetched_context` stays
+`null`), WhatsApp summary — these are Phases 2-4 in `README.md`'s roadmap. Don't
+build ahead of the phase that's actually been asked for.
+
+**Exception: password auth (Phase 1) is no longer "later" — the site is live and
+public with none.** If asked to keep building this project, flag that gap before
+adding anything else; don't let feature work bury it.
 
 ## Working conventions
 

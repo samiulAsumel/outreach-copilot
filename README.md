@@ -13,41 +13,69 @@ and that effort runs out fastest on exactly the leads that matter most. This too
 keeps the resume facts in one place, generates a first draft grounded in those
 facts, and gets out of the way — you still edit and send every email by hand.
 
+## Live
+
+- Frontend: **https://outreach-copilot.pages.dev** (Cloudflare Pages)
+- API: **https://outreach-copilot-api.sasas.workers.dev** (Cloudflare Worker)
+
 ## Stack
 
-- **Cloudflare Workers + static assets** (not Workers + Pages) — one deploy, one
-  origin, no CORS to configure, and the Worker gets D1 + Workers AI bindings and
-  Cron Triggers in the same project Pages Functions can't offer.
+- **Cloudflare Pages (frontend) + a separate Cloudflare Worker (API)** — matches
+  this account's other live projects (portbill, carview, world-kitchen-atlas)
+  rather than one combined Worker-with-assets. Pages auto-deploys on every push via
+  Cloudflare's GitHub integration (already installed on this account); the API
+  Worker deploys manually with `npm run deploy:api`. The two talk over CORS
+  (`worker/lib/http.ts`), restricted to the Pages origin via the `CORS_ORIGIN` var
+  in `wrangler.jsonc`.
 - **D1** for `resume_profile` / `leads` / `email_log` — five million free row-reads
   and 100k free row-writes a day is far more than a single-user tool with a few
   hundred leads will ever hit.
 - **Workers AI** (`@cf/zai-org/glm-4.7-flash` by default) for draft generation —
   10,000 free neurons/day, no card required. The model is a `wrangler.jsonc` `vars`
   entry, not hardcoded, so swapping models is a config edit.
-- **React + TypeScript + Vite**, via `@cloudflare/vite-plugin` — the Worker runs
-  inside the real `workerd` runtime during `vite dev`, so local dev behaves like
-  production (D1 and Workers AI both work locally, no mocking).
+- **React + TypeScript + Vite**. The API Worker (`worker/index.ts`) needs no build
+  step — `wrangler dev`/`deploy` bundle its TypeScript directly.
 - **No framework beyond React** — this is a 4-screen dashboard for one user, not a
   product with routing, SSR, or SEO needs.
 
-## Getting started
+## Getting started (local dev)
 
 ```bash
 npm install
 node node_modules/wrangler/bin/wrangler.js d1 create outreach-copilot-db
 # paste the printed database_id into wrangler.jsonc's d1_databases[0].database_id
 npm run db:migrate:local
-npm run dev
 ```
 
-Opens on the Vite dev server URL printed in the terminal. The Worker (API + D1 +
-Workers AI) runs inside the same process — there's nothing else to start.
+Local dev runs the frontend and API as two processes, matching how they're
+actually deployed:
+
+```bash
+npm run dev:api    # terminal 1 — wrangler dev on :8787 (D1 + Workers AI, real API calls)
+npm run dev        # terminal 2 — vite dev server; /api/* is proxied to :8787 (see vite.config.ts)
+```
 
 ```bash
 npm run lint          # eslint
 npm run typecheck      # tsc, app + worker configs separately
 npm test               # prompt honesty-guard tests (node:test, no framework)
 ```
+
+## Deploying
+
+```bash
+npm run db:migrate:remote          # apply migrations/*.sql to the real D1 database
+npm run deploy:api                 # wrangler deploy — prints the Worker's URL
+
+# then, with that URL:
+VITE_API_BASE_URL="https://outreach-copilot-api.sasas.workers.dev" npm run deploy:web
+```
+
+`deploy:web` builds the SPA with the API's absolute URL baked in (frontend and API
+are different origins in production, unlike local dev's same-origin proxy), then
+uploads it to the Pages project directly (`wrangler pages deploy`), bypassing
+Cloudflare's auto-build (which doesn't know this is a Vite project pointed at a
+separate API and would otherwise serve unbuilt source files).
 
 ## Data model
 
@@ -86,11 +114,10 @@ survive any future edit to the prompt template.
 
 ## Known limitations (Phase 0)
 
-- **No auth yet.** Anyone who can reach the dev server can read/write everything.
-  Fine for `wrangler dev` on localhost; do not deploy this phase publicly. Password
-  auth is Phase 1.
-- **Not deployed.** This phase is verified with `wrangler dev` only — no
-  `wrangler deploy` has been run, no GitHub push either, pending review.
+- **No auth. The live site is public with no login — this is a real, current gap,
+  not a someday-risk.** Anyone with the URL can read/write the resume and lead
+  data, and trigger AI draft generation (spending real Workers AI quota). Password
+  auth is Phase 1 and should happen before this is used for anything sensitive.
 - **No company URL fetch yet.** `leads.url` is stored but not fetched;
   `fetched_context` is always `null` until Phase 3 — drafts today work from the
   resume and company name alone.
@@ -107,8 +134,9 @@ survive any future edit to the prompt template.
 
 ## Roadmap
 
-- **Phase 0** (this): resume + leads + AI draft + copy/mailto + D1 log, local only.
-- **Phase 1**: password auth, deploy to Cloudflare.
+- **Phase 0** (this): resume + leads + AI draft + copy/mailto + D1 log — deployed
+  and live, but with no auth (see "Known limitations" above).
+- **Phase 1**: password auth — the priority next step, given Phase 0 is public.
 - **Phase 2**: AI Gateway (Gemini fallback + caching + real usage tracking).
 - **Phase 3**: company URL auto-fetch into `fetched_context`.
 - **Phase 4**: follow-up reminders, reply tracking is already in Phase 0's schema,

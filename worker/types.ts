@@ -11,6 +11,10 @@ export interface Env {
   // hardcoded so swapping models (or bumping to a newer free-tier model) is
   // a wrangler.jsonc edit, not a code change.
   AI_MODEL: string;
+  // The Cloudflare Pages frontend's origin, e.g.
+  // "https://outreach-copilot.pages.dev" — the only origin allowed to call
+  // this API cross-origin (worker/lib/http.ts).
+  CORS_ORIGIN: string;
 }
 
 export interface ResumeProfile {

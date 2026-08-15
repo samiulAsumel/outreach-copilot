@@ -1,6 +1,27 @@
 // Response shape fixed by the user's global API-design rules: every success
 // envelope is {success, data, message}, every error is
 // {success, error, message, details}, with a matching HTTP status code.
+import type { Env } from '../types';
+
+// CORS is applied once, here, wrapped around every response in
+// worker/index.ts's fetch handler — not scattered across each route — so
+// there's exactly one place that decides which origin is allowed, matching
+// the "single seam" pattern used elsewhere in this file (worker/lib/ai.ts).
+export function corsHeaders(env: Env): HeadersInit {
+  return {
+    'Access-Control-Allow-Origin': env.CORS_ORIGIN,
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+}
+
+export function withCors(response: Response, env: Env): Response {
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(corsHeaders(env))) {
+    headers.set(key, value);
+  }
+  return new Response(response.body, { status: response.status, headers });
+}
 
 export class AppError extends Error {
   readonly statusCode: number;

@@ -1,30 +1,24 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
-	"name": "outreach-copilot",
+	// "-api" distinguishes this from the "outreach-copilot" Cloudflare Pages
+	// project (the frontend) — same pattern as this account's other
+	// split deployments (e.g. portbill-proxy, carview-proxy).
+	"name": "outreach-copilot-api",
 	// Bump this only when you've read the Workers changelog for that date —
 	// it opts into runtime behavior changes, not just a timestamp.
 	"compatibility_date": "2026-08-14",
 
-	// worker/index.ts runs for every request; the Cloudflare Vite plugin
-	// serves the built React SPA from dist/client alongside it, and
-	// run_worker_first ensures /api/* always hits the Worker instead of
-	// falling through to a (non-existent) static file first.
+	// API-only Worker — no static assets here. The frontend is a separate
+	// Cloudflare Pages deployment (Cloudflare's GitHub integration builds
+	// and deploys it automatically on push); the two talk over CORS. wrangler
+	// bundles worker/index.ts's TypeScript directly, no build step needed.
 	"main": "./worker/index.ts",
-	"assets": {
-		"not_found_handling": "single-page-application",
-		"run_worker_first": ["/api/*"]
-	},
 
 	"d1_databases": [
 		{
 			"binding": "DB",
 			"database_name": "outreach-copilot-db",
-			// Placeholder — real value is filled in after
-			// `wrangler d1 create outreach-copilot-db` (see README "Getting
-			// started"). Local dev works with this placeholder because
-			// --local resolves the DB by name against .wrangler/state, not
-			// this id.
-			"database_id": "00000000-0000-0000-0000-000000000000"
+			"database_id": "ab103489-aaeb-440b-bb6c-0cf5f3e68b32"
 		}
 	],
 
@@ -37,7 +31,12 @@
 		// is confirmed still free as of 2026-08 (glm-5.2/kimi-k2.x now
 		// require the paid plan — see worker/lib/ai.ts). Swapping models is
 		// a config edit, not a code change.
-		"AI_MODEL": "@cf/zai-org/glm-4.7-flash"
+		"AI_MODEL": "@cf/zai-org/glm-4.7-flash",
+		// The Pages frontend's origin — the only origin allowed to call this
+		// API cross-origin (see worker/lib/http.ts's CORS handling). Local
+		// dev doesn't need CORS at all (vite.config.ts proxies /api same-origin),
+		// so this only matters for the deployed API.
+		"CORS_ORIGIN": "https://outreach-copilot.pages.dev"
 	}
 
 	// Secrets (never committed — set with `wrangler secret put <NAME>`,

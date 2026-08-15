@@ -30,8 +30,16 @@ interface ErrorEnvelope {
   details: unknown[];
 }
 
+// The frontend (Cloudflare Pages) and the API (a separate Worker) run on
+// different origins in production, so requests need an absolute base URL
+// there. Locally, vite.config.ts's dev-server proxy makes /api relative
+// paths work against `wrangler dev` on the same origin, so the default
+// (unset -> '') is correct for `npm run dev`. Set at build time via
+// VITE_API_BASE_URL for the production build (see README "Deploying").
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   });
