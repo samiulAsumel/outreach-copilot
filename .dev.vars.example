@@ -1,0 +1,12 @@
+# Local-only overrides for `wrangler dev`. Copy to `.dev.vars` (gitignored)
+# and fill in real values — never commit .dev.vars itself.
+#
+# Phase 0 needs nothing here: D1 and Workers AI both work locally via the
+# bindings in wrangler.jsonc with no secrets. This file exists now so Phase 1
+# (password auth) only needs new lines added here, not a new pattern learned.
+
+# Phase 1: password gate for the single-user dashboard.
+# DASHBOARD_PASSWORD=
+
+# Phase 1: session cookie signing key. Generate with: openssl rand -base64 32
+# SESSION_SECRET=

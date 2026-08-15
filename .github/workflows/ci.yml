@@ -1,0 +1,25 @@
+name: CI
+
+# Lint, typecheck, and the prompt honesty-guard tests on every push/PR to
+# main. No deploy step here — deploys are run manually with
+# `npm run deploy` until a Cloudflare API token is added as a repo secret
+# (see README "Deploying"), matching how portbill and world-kitchen-atlas
+# handle it: CI verifies the code, it doesn't ship it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test

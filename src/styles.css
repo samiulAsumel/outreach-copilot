@@ -1,0 +1,265 @@
+/* Design tokens per the user's global Port Theme (CLAUDE.md). Plain CSS
+   custom properties rather than Tailwind: this is a 4-component single-user
+   dashboard, not a marketing site, and it matches the plain-CSS approach
+   already used in this user's other single-page tools (carview, portbill)
+   more closely than pulling in a build-time utility framework would. */
+:root {
+  --color-primary: #1e3a5f;
+  --color-accent: #f97316;
+  --color-bg: #ffffff;
+  --color-text: #1f2937;
+  --color-border: #d1d5db;
+  --color-bg-muted: #f3f4f6;
+  --color-danger: #b91c1c;
+  --radius: 6px;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--color-text);
+  background: var(--color-bg-muted);
+}
+
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4);
+}
+
+.app__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+}
+
+.app__header h1 {
+  color: var(--color-primary);
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.app__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-6);
+}
+
+@media (min-width: 900px) {
+  .app__grid {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+.panel {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.panel h2 {
+  margin-top: 0;
+  font-size: 1.05rem;
+  color: var(--color-primary);
+}
+
+.panel__hint {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.panel__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+}
+
+.panel__meta {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  margin-bottom: var(--space-3);
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+textarea {
+  resize: vertical;
+  font-family: inherit;
+}
+
+.profile-editor__textarea,
+.draft-panel__textarea {
+  width: 100%;
+}
+
+button,
+.button-like {
+  display: inline-block;
+  font: inherit;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Secondary actions (Generate draft, Copy, Mark sent, ...) get the accent
+   color; the lead-row selector button is a `type="button"` too but is a
+   list item, not an action, so it's explicitly excluded here rather than
+   inheriting a call-to-action look it shouldn't have. */
+button[type='button']:not(.lead-list__delete):not(.lead-list__main),
+.button-like {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.lead-list__delete {
+  background: transparent;
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  padding: 0.25rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.error-text {
+  color: var(--color-danger);
+  font-size: 0.9rem;
+}
+
+.lead-form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.lead-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.lead-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+}
+
+.lead-list__item--active {
+  border-color: var(--color-primary);
+  background: #eef2f7;
+}
+
+.lead-list__main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lead-list__company {
+  font-weight: 600;
+}
+
+.lead-list__status {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-bg-muted);
+  color: var(--color-text);
+}
+
+.lead-list__status--sent,
+.lead-list__status--replied {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.lead-list__status--drafted {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.lead-list__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.lead-list__replied {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.draft-panel__controls {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.quota-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+.quota-bar__count {
+  font-weight: 700;
+  color: var(--color-primary);
+  font-size: 1.2rem;
+}
